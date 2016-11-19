@@ -153,9 +153,21 @@
               </li>
             </ul>
           </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Vamos assumir uma rede compartilhada por todas as instâncias...</h3>
+          </section>
 
           <section>
-            <h3>Passo 0: registrar nó no Ironic</h3>
+            <h3>Passo 0: hardware e rede</h3>
+
+            <img style="background-color: #fff" src="images/ironic-hw-flat-cropped.png" width=100%>
+          </section>
+
+          <section>
+            <h3>Passo 1: registrar nó no Ironic</h3>
 
             <pre><code class="fragment">$ ironic node-create -d agent_ipmitool \
       -i ipmi_username=admin -i ipmi_password=fake -i ipmi_address=10.1.2.3 \
@@ -165,7 +177,7 @@
           </section>
 
           <section>
-            <h3>Passo 1: registrar flavor para o nó</h3>
+            <h3>Passo 2: registrar flavor para o nó</h3>
 
             <pre><code>$ nova flavor-create my-baremetal-flavor auto $RAM_MB $DISK_GB $CPU</code></pre>
           </section>
@@ -217,6 +229,10 @@
           </section>
 
           <section>
+            <img style="background-color: #fff" src="images/ironic-hw-neutron-cropped.png" width=100%>
+          </section>
+
+          <section>
             Nova
           </section>
 
@@ -240,9 +256,8 @@
           <section>
             <h3>Hora da limpeza</h3>
 
+            <pre><code>$ nova delete my_high_mem_server</code></pre>
             Por padrão, Ironic preenche o disco com 0s após a execução de uma instância.
-            <br>
-            <pre><code>nova delete my_high_mem_server</code></pre>
           </section>
 
           <section>
@@ -306,8 +321,10 @@
               <li>SAP</li>
               <br>
               <li>Universidade Federal de Campina Grande</li>
+              <li>Hewlett & Packard Enterprise</li>
               <li>Red Hat</li>
               <li>Mirantis</li>
+              <li>Intel</li>
               <li>IBM</li>
             </ul>
           </section>
