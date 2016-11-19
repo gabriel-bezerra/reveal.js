@@ -1,0 +1,29 @@
+participant User as u
+participant Nova-API as n-api
+participant Nova-Scheduler as n-sch
+participant Nova-Compute as n-cpu
+participant Glance as glance
+participant Neutron-Server as q-srv
+participant Neutron-Agent as q-agt
+participant KVM/vswitch as hyper
+
+u->n-api: boot()
+n-api->n-api: new instance on DB
+n-api-->u: uuid, spawning
+n-api->n-sch: new instance
+n-sch->n-sch: select a compute
+n-sch->n-cpu: new instance: image src, config
+n-cpu->glance: fetch image
+n-cpu->q-srv: allocate port for instance
+n-cpu->hyper: create VM
+n-cpu->hyper: attach VIF
+hyper-->q-agt: new port
+q-agt->q-srv: fetch port info
+q-agt->hyper: configure network
+note right of n-cpu
+  volume attachments
+end note
+n-cpu->hyper: turn VM on
+
+u->n-api: instance state?
+n-api-->u: running

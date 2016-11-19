@@ -1,0 +1,366 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Ironic - Máquina física as a Service</title>
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/night.css">
+    <!--link rel="stylesheet" href="css/theme/black.css"-->
+
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>Ironic</h1>
+          <h3>Máquina física as a Service</h3>
+          <h4>(ou Que mulésta é esse Ironic?)</h4>
+          <br>
+          <h5>Gabriel Assis Bezerra</h5>
+        </section>
+
+        <section>
+          <section>
+            <h3>Cloud é bacana, mas...</h3>
+
+            <ul>
+              <li>Eu não vou dividir uma máquina com...!</li>
+              <li>A vizinhança incomoda demais!</li>
+              <li>Meu DBMS fica sofrível quando roda em VM.</li>
+              <li>Como eu faço para acessar a FPGA (ou a GPGPU, ou o...)?</li>
+              <li>Hypervisor só atrapalha</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Cloud é bacana, mas...</h3>
+
+            <ul>
+              <li>Privacidade, segurança</li>
+              <li>SLAs, "noisy neighbor"</li>
+              <li>Aplicações otimizadas para executar diretamente sobre HW</li>
+              <li>Dispositivos que não podem ser virtualizados</li>
+              <li>Desempenho</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Como unir vantagens da cloud com necessidade de BM?</h3>
+            <br>
+            <pre><code>nova boot \
+    --flavor baremetal.high_mem \
+    --image Ubuntu_Xenial \
+    --key-name my_keypair \
+    my_high_mem_server </code></pre>
+          </section>
+
+          <section>
+            <h3>Ironic</h3>
+            <h5>Abstração de HW + API para usá-lo</h5>
+
+            <img src="images/Ironic_mascot_color.png" width=30%>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Como se provê VM?</h3>
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/openstack-conceptual-arch-folsom.png" width=100%>
+            <a href="https://www.ibm.com/blogs/cloud-computing/2014/08/quick-overview-openstack-technology/">
+              <small>https://www.ibm.com/blogs/cloud-computing/2014/08/quick-overview-openstack-technology/</small>
+            </a>
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/osog-architecture.png" width=100%>
+            <a href="http://docs.openstack.org/ops-guide/architecture.html">
+              <small>http://docs.openstack.org/ops-guide/architecture.html</small>
+            </a>
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/nova-vm.png" width=100%>
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/provision-an-instance.png" width=80%>
+            <a href="http://docs.openstack.org/ops-guide/_images/provision-an-instance.png">
+              <small>http://docs.openstack.org/ops-guide/_images/provision-an-instance.png</small>
+            </a>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Como o Ironic se encaixa aí?</h3>
+          </section>
+
+          <section>
+            <h3>Como fazer máquinas físicas parecerem VMs?</h3>
+
+            <ul>
+              <li>Nova espera lidar com Hypervisors, cuja capacidade se consome aos poucos</li>
+              <li>Não é possível criar NICs do nada, como em VMs</li>
+              <li>Não é possível criar Firewalls no Hypervisor, como em VMs</li>
+              <li>Como instalar imagem do usuário em BMs?</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Partes do Ironic</h3>
+
+            <ul>
+              <li class="fragment">
+                Ironic API -- recebe requisições externas
+              </li>
+              <li class="fragment">
+                Ironic Conductor -- gerencia e configura HW diretamente
+              </li>
+              <li class="fragment">
+                Ironic Python Agent -- executa no HW para instalar imagem do usuário
+              </li>
+              <li class="fragment">
+                Nova driver
+                <ul>
+                  <li>Repassa à Ironic API requisições de instâncias</li>
+                  <li>Faz Nova ver cada nó como um Hypervisor</li>
+                  <li>Aloca portas para instâncias baseado em portas registradas para o nó no Ironic</li>
+                </ul>
+              </li>
+              <li class="fragment">
+                Nova-Scheduler bare metal filter
+                <ul>
+                  <li>Casa flavors com capacidade exata do nó (Hypervisor fingido)</li>
+                  <li>Consequência: em cada nó só cabe 1 instância</li>
+                </ul>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Passo 0: registrar nó no Ironic</h3>
+
+            <pre><code class="fragment">$ ironic node-create -d agent_ipmitool \
+      -i ipmi_username=admin -i ipmi_password=fake -i ipmi_address=10.1.2.3 \
+      -p cpus=4 -p memory_mb=8192 -p local_gb=500</code></pre>
+
+            <pre><code class="fragment">$ ironic port-create -n $NODE_UUID -a 00:11:22:00:11:22</code></pre>
+          </section>
+
+          <section>
+            <h3>Passo 1: registrar flavor para o nó</h3>
+
+            <pre><code>$ nova flavor-create my-baremetal-flavor auto $RAM_MB $DISK_GB $CPU</code></pre>
+          </section>
+
+          <section>
+            Nova
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/nova-bm-flat.png" width=100%>
+          </section>
+
+          <section>
+            Ironic
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/agent-flow-flat-1.png" width=100%>
+          </section>
+          <section>
+            <img style="background-color: #fff" src="images/agent-flow-flat-2.png" width=100%>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>E se eu quiser usar redes diferentes?</h3>
+
+            <br>
+
+            A partir de OpenStack Newton; Nova, Ironic e Neutron colaboram<br>
+            para permitir que instâncias BM possam ser implantadas em uma<br>
+            rede e executem em outra.
+          </section>
+
+          <section>
+            <h3>O que muda</h3>
+
+            <ul>
+              <li>Novo "driver de rede" usado para os nós no Ironic -- gerencia trocas de rede</li>
+              <li>
+                Informação sobre conexão física entre BM e switch acrescentada às portas no Ironic
+                <ul>
+                  <li><i>Local Link Connection (LLC)</i></li>
+                </ul>
+              </li>
+              <li>Necessário switch gerenciado por driver ML2 apropriado no Neutron</li>
+            </ul>
+          </section>
+
+          <section>
+            Nova
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/nova-bm-neutron.png" width=100%>
+          </section>
+
+          <section>
+            Ironic
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/agent-flow-neutron-1.png" width=100%>
+          </section>
+          <section>
+            <img style="background-color: #fff" src="images/agent-flow-neutron-2.png" width=100%>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Hora da limpeza</h3>
+
+            Por padrão, Ironic preenche o disco com 0s após a execução de uma instância.
+            <br>
+            <pre><code>nova delete my_high_mem_server</code></pre>
+          </section>
+
+          <section>
+            <img style="background-color: #fff" src="images/cleaning.png" width=70%>
+          </section>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>O que mais da para fazer?</h3>
+            <ul>
+              <li>Coleta automática de informação de HW -- Inspection</li>
+              <li>Modo stand-alone -- Bifrost</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>E o que não da?</h3>
+
+            <ul>
+              <li>Múltiplas redes por NIC -- previsto para Ocata</li>
+              <li>Múltiplas NICs por rede -- previsto para Ocata</li>
+              <li>Boot a partir de volumes -- previsto para Ocata</li>
+              <li>Configuração de RAID no momento do deployment</li>
+            </ul>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Perguntas mais perguntadas</h3>
+
+            <br>
+
+            <ul>
+              <li><b>Da para prover VM e BM em uma mesma cloud?</b>
+                <ul>
+                  <li>Da, com nova cells</li>
+                  <li>Talvez com host aggregates</li>
+                </ul>
+              </li>
+
+              <br>
+
+              <li><b>Da para usar volumes do Cinder?</b>
+                <ul>
+                  <li>Da, via bricks client</li>
+                  <li>Mais suporte a volumes vindo em Ocata</li>
+                </ul>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Quem usa Ironic?</h3>
+            <br>
+            <ul>
+              <li>Rackspace</li>
+              <li>Internap</li>
+              <li>SAP</li>
+              <br>
+              <li>Universidade Federal de Campina Grande</li>
+              <li>Red Hat</li>
+              <li>Mirantis</li>
+              <li>IBM</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Crowdstar</h3>
+            4 datacenters, 200+ servidores, 100M chamadas API/dia
+            <br>
+            <br>
+            <ul>
+              <li>60% redução de custo</li>
+              <li>40ms menor API latency</li>
+            </ul>
+            <br>
+            <br>
+            <a href="https://www.openstack.org/videos/barcelona-2016/containers-on-bare-metal-for-game-developer-crowdstar">
+              https://www.openstack.org/videos/barcelona-2016/containers-on-bare-metal-for-game-developer-crowdstar
+            </a>
+          </section>
+        </section>
+
+        <section>
+          <h1>Obrigado!</h1>
+
+          <br>
+
+          <h3>Gabriel Assis Bezerra</h3>
+          <h5>gabrielb@lsd.ufcg.edu.br</h5>
+          <h5><a href="http://github.com/gabriel-bezerra">github.com/gabriel-bezerra</a></h5>
+
+          <br>
+          Muitas imagens e conteúdo tirados de<br>
+          <a href="http://github.com/devananda/talks">github.com/devananda/talks</a>
+        </section>
+      </div>
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+
+    <script>
+      // More info https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        history: true,
+
+        // More info https://github.com/hakimel/reveal.js#dependencies
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+        ]
+      });
+    </script>
+  </body>
+</html>

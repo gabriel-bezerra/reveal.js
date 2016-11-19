@@ -1,0 +1,30 @@
+participant Nova
+participant Ironic
+participant Glance
+participant Neutron
+
+Nova->Ironic: set instance_info
+Nova->Ironic: set provision_state
+Ironic->Ironic: do_node_deploy()
+Ironic->Glance: fetch agent's kernel, ramdisk
+Ironic->Ironic: update pxe, tftp configs
+Ironic->Neutron: update DHCPBOOT
+Ironic->Node: power on
+Node->Neutron: DHCP request
+Neutron-->Node: next-server = Conductor
+Node->Ironic: attempts tftpboot
+Ironic-->Node: send agent kernel, ramdisk, & config
+Node->Node: runs agent ramdisk
+Node->Ironic: \"ready\"
+Ironic-->Node: continue deploy: pass image, disk info
+
+alt Node downloads image, writes to disk
+    Node->Ironic: hearbeats periodically
+    Ironic->Node: is deploy done yet?
+    Node-->Ironic: still working...
+else When deploy is done
+    Ironic->Neutron: clear DHCPBOOT
+    Ironic->Node: set bootdev HDD
+    Ironic->Node: reboot
+end
+Node->Node: reboots into user instance

@@ -1,0 +1,33 @@
+participant Ironic
+participant Glance
+participant Neutron
+participant Switch
+participant Node
+
+Ironic->Ironic: do_node_cleaning()
+Ironic->Glance: fetch agent's kernel, ramdisk
+Ironic->Ironic: update pxe, tftp configs
+Ironic->Neutron: create provisioning port with LLC
+Ironic->Neutron: update DHCPBOOT
+Neutron->Switch: set Node port on cleaning VLAN
+note right of Neutron
+  Node on cleaning network
+end note
+Ironic->Node: power on
+Node->Neutron: DHCP request
+Neutron-->Node: next-server = Conductor
+Node->Ironic: attempts tftpboot
+Ironic-->Node: send agent kernel, ramdisk, & config
+Node->Node: runs agent ramdisk
+Node->Ironic: \"ready\"
+Ironic-->Node: continue deploy: pass image, disk info
+
+alt Node cleans machine according to configured cleaning_steps
+    Node->Ironic: hearbeats periodically
+    Ironic->Node: is cleaning done yet?
+    Node-->Ironic: still working...
+else When cleaning is done
+    Ironic->Node: shut down
+    Ironic->Neutron: delete cleaning port
+    Neutron->Switch: disconnect node
+end
